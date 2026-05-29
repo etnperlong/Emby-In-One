@@ -48,7 +48,7 @@ func TestInstallScriptMentionsStandaloneDistributionLayout(t *testing.T) {
 		t.Fatalf("read install.sh: %v", err)
 	}
 	text := string(data)
-	for _, fragment := range []string{"cmd", "internal", "third_party", "go.mod", "public"} {
+	for _, fragment := range []string{"cmd", "internal", "go.mod", "go.sum", "public"} {
 		if !strings.Contains(text, fragment) {
 			t.Fatalf("install.sh does not mention standalone distribution fragment %q", fragment)
 		}
@@ -77,9 +77,14 @@ func TestStandaloneDistributionDockerfilesDoNotReferenceGoBackendPrefix(t *testi
 		if strings.Contains(text, "COPY go-backend/") {
 			t.Fatalf("standalone Dockerfile %s still references go-backend/ paths", path)
 		}
-		for _, expected := range []string{"COPY go.mod ./", "COPY third_party ./third_party", "COPY cmd ./cmd", "COPY internal ./internal"} {
+		for _, expected := range []string{"COPY go.mod ./", "COPY go.sum ./", "COPY cmd ./cmd", "COPY internal ./internal", "COPY public ./public", "CGO_ENABLED=0"} {
 			if !strings.Contains(text, expected) {
 				t.Fatalf("standalone Dockerfile %s missing %q", path, expected)
+			}
+		}
+		for _, forbidden := range []string{"COPY third_party", "build-essential", "CGO_ENABLED=1"} {
+			if strings.Contains(text, forbidden) {
+				t.Fatalf("standalone Dockerfile %s still contains %q", path, forbidden)
 			}
 		}
 	}

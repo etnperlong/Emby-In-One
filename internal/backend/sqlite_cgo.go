@@ -1,125 +1,154 @@
 package backend
 
-/*
-#cgo CFLAGS: -I${SRCDIR}/../../third_party/sqlite -DSQLITE_THREADSAFE=1 -DSQLITE_OMIT_LOAD_EXTENSION
-#cgo linux CFLAGS: -D_GNU_SOURCE
-#include <stdlib.h>
-#include "../../third_party/sqlite/sqlite3.c"
-static int bind_text_transient(sqlite3_stmt* stmt, int idx, const char* value) {
-    return sqlite3_bind_text(stmt, idx, value, -1, SQLITE_TRANSIENT);
-}
-*/
-import "C"
-
 import (
-	"errors"
 	"fmt"
-	"unsafe"
-)
+	"strings"
+	"sync"
 
-const (
-	sqliteRow  = 100
-	sqliteDone = 101
+	"zombiezen.com/go/sqlite"
 )
 
 type sqliteDB struct {
-	ptr *C.sqlite3
+	mu   sync.Mutex
+	conn *sqlite.Conn
 }
 
 type sqliteStmt struct {
-	ptr *C.sqlite3_stmt
+	db   *sqliteDB
+	stmt *sqlite.Stmt
 }
 
 func openSQLite(path string) (*sqliteDB, error) {
-	cPath := C.CString(path)
-	defer C.free(unsafe.Pointer(cPath))
-	var db *C.sqlite3
-	if rc := C.sqlite3_open(cPath, &db); rc != 0 {
-		errMsg := C.GoString(C.sqlite3_errmsg(db))
-		if db != nil {
-			_ = closeSQLite(&sqliteDB{ptr: db})
-		}
-		return nil, fmt.Errorf("sqlite open: %s", errMsg)
+	conn, err := sqlite.OpenConn(path, sqlite.OpenReadWrite, sqlite.OpenCreate, sqlite.OpenPrivateCache)
+	if err != nil {
+		return nil, fmt.Errorf("sqlite open: %w", err)
 	}
-	return &sqliteDB{ptr: db}, nil
+	return &sqliteDB{conn: conn}, nil
 }
 
 func closeSQLite(db *sqliteDB) error {
-	if db == nil || db.ptr == nil {
+	if db == nil {
 		return nil
 	}
-	if rc := C.sqlite3_close(db.ptr); rc != 0 {
-		return errors.New(C.GoString(C.sqlite3_errmsg(db.ptr)))
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	if db.conn == nil {
+		return nil
 	}
-	db.ptr = nil
-	return nil
+	err := db.conn.Close()
+	db.conn = nil
+	return err
 }
 
 func (db *sqliteDB) exec(query string) error {
-	cQuery := C.CString(query)
-	defer C.free(unsafe.Pointer(cQuery))
-	var errMsg *C.char
-	if rc := C.sqlite3_exec(db.ptr, cQuery, nil, nil, &errMsg); rc != 0 {
-		if errMsg != nil {
-			defer C.sqlite3_free(unsafe.Pointer(errMsg))
-			return errors.New(C.GoString(errMsg))
-		}
-		return errors.New(C.GoString(C.sqlite3_errmsg(db.ptr)))
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	return db.execLocked(query)
+}
+
+func (db *sqliteDB) execLocked(query string) error {
+	if db == nil || db.conn == nil {
+		return fmt.Errorf("sqlite exec: database is closed")
 	}
-	return nil
+	for {
+		query = strings.TrimSpace(query)
+		if query == "" {
+			return nil
+		}
+		stmt, trailingBytes, err := db.conn.PrepareTransient(query)
+		if err != nil {
+			return err
+		}
+		for {
+			hasRow, err := stmt.Step()
+			if err != nil {
+				_ = stmt.Finalize()
+				return err
+			}
+			if !hasRow {
+				break
+			}
+		}
+		if err := stmt.Finalize(); err != nil {
+			return err
+		}
+		usedBytes := len(query) - trailingBytes
+		if usedBytes <= 0 || usedBytes > len(query) {
+			return fmt.Errorf("sqlite exec: invalid trailing byte count")
+		}
+		query = query[usedBytes:]
+	}
 }
 
 // execParams runs a write query with parameterized arguments to prevent SQL injection.
 func (db *sqliteDB) execParams(query string, args ...any) error {
-	stmt, err := db.prepare(query)
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	stmt, err := db.prepareLocked(query)
 	if err != nil {
 		return err
 	}
-	defer stmt.finalize()
-	if err := stmt.bindAll(args...); err != nil {
+	defer stmt.finalizeLocked()
+	if err := stmt.bindAllLocked(args...); err != nil {
 		return err
 	}
-	if _, err := stmt.step(); err != nil {
-		return err
-	}
-	return nil
+	_, err = stmt.stmt.Step()
+	return err
 }
 
 func (db *sqliteDB) prepare(query string) (*sqliteStmt, error) {
-	cQuery := C.CString(query)
-	defer C.free(unsafe.Pointer(cQuery))
-	var stmt *C.sqlite3_stmt
-	if rc := C.sqlite3_prepare_v2(db.ptr, cQuery, -1, &stmt, nil); rc != 0 {
-		return nil, errors.New(C.GoString(C.sqlite3_errmsg(db.ptr)))
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	return db.prepareLocked(query)
+}
+
+func (db *sqliteDB) prepareLocked(query string) (*sqliteStmt, error) {
+	if db == nil || db.conn == nil {
+		return nil, fmt.Errorf("sqlite prepare: database is closed")
 	}
-	return &sqliteStmt{ptr: stmt}, nil
+	stmt, trailingBytes, err := db.conn.PrepareTransient(query)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(query[len(query)-trailingBytes:]) != "" {
+		_ = stmt.Finalize()
+		return nil, fmt.Errorf("sqlite prepare: statement has trailing SQL")
+	}
+	return &sqliteStmt{db: db, stmt: stmt}, nil
 }
 
 func (stmt *sqliteStmt) finalize() {
-	if stmt != nil && stmt.ptr != nil {
-		C.sqlite3_finalize(stmt.ptr)
-		stmt.ptr = nil
+	if stmt == nil || stmt.db == nil {
+		return
+	}
+	stmt.db.mu.Lock()
+	defer stmt.db.mu.Unlock()
+	stmt.finalizeLocked()
+}
+
+func (stmt *sqliteStmt) finalizeLocked() {
+	if stmt != nil && stmt.stmt != nil {
+		_ = stmt.stmt.Finalize()
+		stmt.stmt = nil
 	}
 }
 
 func (stmt *sqliteStmt) bindAll(args ...any) error {
+	stmt.db.mu.Lock()
+	defer stmt.db.mu.Unlock()
+	return stmt.bindAllLocked(args...)
+}
+
+func (stmt *sqliteStmt) bindAllLocked(args ...any) error {
 	for i, arg := range args {
+		param := i + 1
 		switch v := arg.(type) {
 		case string:
-			cValue := C.CString(v)
-			if rc := C.bind_text_transient(stmt.ptr, C.int(i+1), cValue); rc != 0 {
-				C.free(unsafe.Pointer(cValue))
-				return fmt.Errorf("sqlite bind text: %d", int(rc))
-			}
-			C.free(unsafe.Pointer(cValue))
+			stmt.stmt.BindText(param, v)
 		case int:
-			if rc := C.sqlite3_bind_int(stmt.ptr, C.int(i+1), C.int(v)); rc != 0 {
-				return fmt.Errorf("sqlite bind int: %d", int(rc))
-			}
+			stmt.stmt.BindInt64(param, int64(v))
 		case int64:
-			if rc := C.sqlite3_bind_int64(stmt.ptr, C.int(i+1), C.sqlite3_int64(v)); rc != 0 {
-				return fmt.Errorf("sqlite bind int64: %d", int(rc))
-			}
+			stmt.stmt.BindInt64(param, v)
 		default:
 			return fmt.Errorf("unsupported sqlite bind type %T", arg)
 		}
@@ -128,29 +157,37 @@ func (stmt *sqliteStmt) bindAll(args ...any) error {
 }
 
 func (stmt *sqliteStmt) step() (bool, error) {
-	rc := C.sqlite3_step(stmt.ptr)
-	switch rc {
-	case sqliteRow:
-		return true, nil
-	case sqliteDone:
-		return false, nil
-	default:
-		return false, fmt.Errorf("sqlite step: %d", int(rc))
+	stmt.db.mu.Lock()
+	defer stmt.db.mu.Unlock()
+	if stmt == nil || stmt.stmt == nil {
+		return false, fmt.Errorf("sqlite step: statement is finalized")
 	}
+	return stmt.stmt.Step()
 }
 
 func (stmt *sqliteStmt) columnText(index int) string {
-	text := C.sqlite3_column_text(stmt.ptr, C.int(index))
-	if text == nil {
+	stmt.db.mu.Lock()
+	defer stmt.db.mu.Unlock()
+	if stmt == nil || stmt.stmt == nil {
 		return ""
 	}
-	return C.GoString((*C.char)(unsafe.Pointer(text)))
+	return stmt.stmt.ColumnText(index)
 }
 
 func (stmt *sqliteStmt) columnInt(index int) int {
-	return int(C.sqlite3_column_int(stmt.ptr, C.int(index)))
+	stmt.db.mu.Lock()
+	defer stmt.db.mu.Unlock()
+	if stmt == nil || stmt.stmt == nil {
+		return 0
+	}
+	return stmt.stmt.ColumnInt(index)
 }
 
 func (stmt *sqliteStmt) columnInt64(index int) int64 {
-	return int64(C.sqlite3_column_int64(stmt.ptr, C.int(index)))
+	stmt.db.mu.Lock()
+	defer stmt.db.mu.Unlock()
+	if stmt == nil || stmt.stmt == nil {
+		return 0
+	}
+	return stmt.stmt.ColumnInt64(index)
 }

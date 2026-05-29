@@ -106,7 +106,7 @@ bash install.sh
 
 The script will automatically install the Docker environment, assign a random admin password, build the Go version image, and start the service. To manage your server later, type `emby-in-one` via SSH to call up the management menu.
 
-> **Note**: The source-repo install script copies `cmd/`, `internal/`, `third_party/`, and `public/` into the builder stage for Go compilation. If you customize the `Dockerfile` or copy files manually, make sure the `public/` directory is also present in the build context, otherwise the build may fail with `package emby-in-one/public is not in std`.
+> **Note**: The source-repo install script copies `go.mod`, `go.sum`, `cmd/`, `internal/`, and `public/` into the builder stage for Go compilation. If you customize the `Dockerfile` or copy files manually, make sure the `public/` directory is also present in the build context, otherwise the build may fail with `package emby-in-one/public is not in std`.
 
 ### Method 3: Manual Docker Compose Deployment
 
@@ -115,7 +115,7 @@ The script will automatically install the Docker environment, assign a random ad
 mkdir -p /opt/emby-in-one/{config,data}
 cd /opt/emby-in-one
 ```
-2. Copy all core files from this repository (including `go.mod`, `cmd/`, `internal/`, `public/`, `Dockerfile`, `docker-compose.yml`, etc.) to this directory.
+2. Copy all core files from this repository (including `go.mod`, `go.sum`, `cmd/`, `internal/`, `public/`, `Dockerfile`, `docker-compose.yml`, etc.) to this directory.
 3. Create the initial configuration `config/config.yaml`:
 ```yaml
 server:
@@ -148,7 +148,7 @@ docker compose up -d
 
 ### Method 4: Direct Go Source Run (For Developers)
 
-Requirements: Go 1.23+ and a C toolchain (Debian/Ubuntu run `apt install build-essential`).
+Requirements: Go 1.23+. SQLite uses a pure Go implementation, so source runs do not need CGO or a native compiler.
 ```bash
 mkdir -p config data
 # Create config.yaml in the config folder as instructed in Method 3
@@ -175,7 +175,7 @@ go run ./cmd/emby-in-one
 
 **Go Source Build:**
 - Go 1.23+
-- C Toolchain (CGO used for SQLite): Debian/Ubuntu run `apt install build-essential`
+- SQLite uses a pure Go dependency and supports `CGO_ENABLED=0` builds
 
 ---
 
@@ -662,9 +662,8 @@ Emby-In-One/
 │   ├── healthcheck.go              # Parallel health checks
 │   ├── logger.go                   # Leveled logging (Console + File dual output + rotation)
 │   ├── scrypt_local.go             # Admin password scrypt hashing
-│   ├── sqlite_cgo.go               # CGO embedded SQLite compilation & low-level bindings
+│   ├── sqlite_cgo.go               # Pure Go SQLite low-level wrapper
 │   └── upstream_stub.go            # Upstream connection pool & concurrent request orchestration
-├── third_party/sqlite/             # SQLite CGO source dependency
 ├── public/
 │   ├── embed.go                    # go:embed directive (compiles admin.html and admin.js into binary)
 │   ├── admin.html                  # Vue 3 + Tailwind CSS admin panel template

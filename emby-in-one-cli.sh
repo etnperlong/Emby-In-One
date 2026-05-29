@@ -212,7 +212,7 @@ do_update() {
 
     # 3. 替换源码（保留 config/ data/ log/ 用户数据）
     echo -e "  ${DIM}更新项目文件...${NC}"
-    for item in cmd internal third_party public go.mod; do
+    for item in cmd internal public go.mod go.sum; do
       rm -rf "${PROJECT_DIR:?}/${item}"
       if [[ -e "${src_dir}/${item}" ]]; then
         cp -r "${src_dir}/${item}" "${PROJECT_DIR}/"
@@ -229,14 +229,14 @@ do_update() {
     cat > "${PROJECT_DIR}/Dockerfile" <<'DEOF'
 FROM golang:1.23-bookworm AS builder
 ARG VERSION=dev
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY go.mod ./
-COPY third_party ./third_party
+COPY go.sum ./
 COPY cmd ./cmd
 COPY internal ./internal
 COPY public ./public
-RUN CGO_ENABLED=1 go build -ldflags="-s -w -X main.Version=${VERSION}" -o /out/emby-in-one ./cmd/emby-in-one
+RUN CGO_ENABLED=0 go build -ldflags="-s -w -X main.Version=${VERSION}" -o /out/emby-in-one ./cmd/emby-in-one
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates tzdata && rm -rf /var/lib/apt/lists/*
@@ -387,7 +387,7 @@ download_and_install_docker() {
 
   # 替换源码（保留 config/ data/ log/ 用户数据）
   echo -e "  ${DIM}更新项目文件...${NC}"
-  for item in cmd internal third_party public go.mod; do
+  for item in cmd internal public go.mod go.sum; do
     rm -rf "${PROJECT_DIR:?}/${item}"
     if [[ -e "${src_dir}/${item}" ]]; then
       cp -r "${src_dir}/${item}" "${PROJECT_DIR}/"
@@ -406,14 +406,14 @@ download_and_install_docker() {
     cat > "${PROJECT_DIR}/Dockerfile" <<'DEOF'
 FROM golang:1.23-bookworm AS builder
 ARG VERSION=dev
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY go.mod ./
-COPY third_party ./third_party
+COPY go.sum ./
 COPY cmd ./cmd
 COPY internal ./internal
 COPY public ./public
-RUN CGO_ENABLED=1 go build -ldflags="-s -w -X main.Version=${VERSION}" -o /out/emby-in-one ./cmd/emby-in-one
+RUN CGO_ENABLED=0 go build -ldflags="-s -w -X main.Version=${VERSION}" -o /out/emby-in-one ./cmd/emby-in-one
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates tzdata && rm -rf /var/lib/apt/lists/*

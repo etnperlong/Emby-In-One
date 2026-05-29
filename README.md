@@ -106,7 +106,7 @@ bash install.sh
 
 脚本将为您自动安装 Docker 环境、分配随机管理员密码、构建 Go 版镜像并启动服务。后续如需管理，通过 SSH 输入 `emby-in-one` 即可呼出管理菜单。
 
-> **说明**：源码仓库安装脚本在 builder 阶段会同时复制 `cmd/`、`internal/`、`third_party/` 和 `public/` 参与 Go 编译。若您自行定制 `Dockerfile` 或手动复制文件，请确保 `public/` 目录也被包含在构建上下文中，否则会在构建时出现 `package emby-in-one/public is not in std` 错误。
+> **说明**：源码仓库安装脚本在 builder 阶段会同时复制 `go.mod`、`go.sum`、`cmd/`、`internal/` 和 `public/` 参与 Go 编译。若您自行定制 `Dockerfile` 或手动复制文件，请确保 `public/` 目录也被包含在构建上下文中，否则会在构建时出现 `package emby-in-one/public is not in std` 错误。
 
 ### 方式三：手动 Docker Compose 部署
 
@@ -115,7 +115,7 @@ bash install.sh
 mkdir -p /opt/emby-in-one/{config,data}
 cd /opt/emby-in-one
 ```
-2. 拷贝本仓库下的所有核心文件（包括 `go.mod`, `cmd/`, `internal/`, `public/`, `Dockerfile`, `docker-compose.yml` 等）至该目录。
+2. 拷贝本仓库下的所有核心文件（包括 `go.mod`, `go.sum`, `cmd/`, `internal/`, `public/`, `Dockerfile`, `docker-compose.yml` 等）至该目录。
 3. 创建初始配置文件 `config/config.yaml`：
 ```yaml
 server:
@@ -148,7 +148,7 @@ docker compose up -d
 
 ### 方式四：Go 源码直接运行（适合开发者）
 
-环境要求：Go 1.23+ 且具备 C 编译链（Debian/Ubuntu 运行 `apt install build-essential`）。
+环境要求：Go 1.23+。SQLite 使用纯 Go 实现，源码运行不需要 CGO 或原生编译器。
 ```bash
 mkdir -p config data
 # 按方式三的说明在 config 文件夹下创建 config.yaml
@@ -175,7 +175,7 @@ go run ./cmd/emby-in-one
 
 **Go 源码编译：**
 - Go 1.23+
-- C 编译链（CGO 用于 SQLite）：Debian/Ubuntu 运行 `apt install build-essential`
+- SQLite 使用纯 Go 依赖，支持 `CGO_ENABLED=0` 构建
 
 ---
 
@@ -662,9 +662,8 @@ Emby-In-One/
 │   ├── healthcheck.go              # 并行健康检查
 │   ├── logger.go                   # 分级日志（Console + File 双输出 + 轮转）
 │   ├── scrypt_local.go             # 管理员密码 scrypt 加密
-│   ├── sqlite_cgo.go               # CGO 嵌入式 SQLite 编译与底层绑定
+│   ├── sqlite_cgo.go               # 纯 Go SQLite 底层封装
 │   └── upstream_stub.go            # 上游连接池 & 并发请求编排
-├── third_party/sqlite/             # SQLite CGO 源码依赖
 ├── public/
 │   ├── embed.go                    # go:embed 指令（将 admin.html 和 admin.js 编译进二进制）
 │   ├── admin.html                  # Vue 3 + Tailwind CSS 管理面板模板
