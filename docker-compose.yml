@@ -4,6 +4,8 @@ services:
       context: .
       args:
         VERSION: v1.4.3
+        BUILD_DATE: ""
+        VCS_REF: ""
     container_name: emby-in-one
     ports:
       - "8096:8096"
