@@ -1,6 +1,6 @@
 name: Release
 
-# Uppercase V tags publish four static binaries, panel/scripts and a Docker
+# Uppercase V tags publish two static binaries, panel/scripts and a Docker
 # source archive with checksums. Suffix tags are Pre-releases, never Latest.
 on:
   push:
@@ -44,14 +44,10 @@ jobs:
         shell: bash
     strategy:
       fail-fast: false
-      # Pure Go SQLite (modernc) has no linux/mips or linux/mipsle port.
       matrix:
         include:
           - arch: amd64
           - arch: arm64
-          - arch: arm
-            goarm: '7'
-          - arch: riscv64
     steps:
       - uses: actions/checkout@v4
         with:
@@ -65,7 +61,6 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
           ARCH: ${{ matrix.arch }}
-          GOARM: ${{ matrix.goarm }}
         run: |
           set -euo pipefail
           VERSION="v${TAG#V}"
@@ -106,7 +101,7 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="v${TAG#V}"
-          for arch in amd64 arm64 arm riscv64; do
+          for arch in amd64 arm64; do
             test -s "dist/Emby-In-One-linux-${arch}-${VERSION}"
           done
           chmod +x "dist/Emby-In-One-linux-amd64-${VERSION}"
