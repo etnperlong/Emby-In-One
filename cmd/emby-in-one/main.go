@@ -29,6 +29,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 	if len(args) > 0 && args[0] == "--reset-password" {
 		return runResetPassword(args[1:], stdout, stderr)
 	}
+	if len(args) > 0 && args[0] == "--healthcheck" {
+		return runHealthcheck(healthcheckURL, stderr)
+	}
 
 	app, err := backend.NewApp()
 	if err != nil {
@@ -39,6 +42,26 @@ func run(args []string, stdout, stderr io.Writer) int {
 	defer app.Close()
 	if err := app.Run(); err != nil {
 		_, _ = io.WriteString(stderr, err.Error()+"\n")
+		return 1
+	}
+	return 0
+}
+
+// healthcheckURL matches the image's EXPOSE 8096. The distroless runtime has no
+// wget/curl, so the Docker HEALTHCHECK runs the binary itself.
+const healthcheckURL = "http://127.0.0.1:8096/System/Info/Public"
+
+func runHealthcheck(url string, stderr io.Writer) int {
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "healthcheck: %v\n", err)
+		return 1
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		_, _ = fmt.Fprintf(stderr, "healthcheck: %s\n", resp.Status)
 		return 1
 	}
 	return 0

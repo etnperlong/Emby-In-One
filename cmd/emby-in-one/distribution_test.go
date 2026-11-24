@@ -89,6 +89,47 @@ func TestStandaloneDistributionDockerfilesDoNotReferenceGoBackendPrefix(t *testi
 		}
 	}
 }
+
+func TestDockerRuntimeUsesDistrolessStatic(t *testing.T) {
+	root := repoRootPath()
+	cases := []struct {
+		path               string
+		expectedStageCount int
+		optional           bool
+	}{
+		{path: filepath.Join(root, "Dockerfile"), expectedStageCount: 1},
+		{path: filepath.Join(root, "install.sh"), expectedStageCount: 1},
+		{path: filepath.Join(root, "emby-in-one-cli.sh"), expectedStageCount: 1},
+		{path: filepath.Join(root, "Emby-In-One-Go", "Dockerfile"), expectedStageCount: 1, optional: true},
+		{path: filepath.Join(root, "Emby-In-One-Go", "install.sh"), expectedStageCount: 1, optional: true},
+		{path: filepath.Join(root, "Emby-In-One-Go", "emby-in-one-cli.sh"), expectedStageCount: 1, optional: true},
+	}
+	for _, tc := range cases {
+		data, err := os.ReadFile(tc.path)
+		if err != nil {
+			if tc.optional && os.IsNotExist(err) {
+				continue
+			}
+			t.Fatalf("read %s: %v", tc.path, err)
+		}
+		text := string(data)
+		if got := strings.Count(text, "FROM gcr.io/distroless/static-debian13"); got != tc.expectedStageCount {
+			t.Fatalf("%s has %d distroless runtime stage(s), want %d", tc.path, got, tc.expectedStageCount)
+		}
+		for _, forbidden := range []string{
+			"FROM debian:bookworm-slim",
+			"apt-get install -y --no-install-recommends ca-certificates tzdata",
+			"RUN mkdir -p /app/config /app/data /app/public",
+			"useradd",
+			"wget -qO-",
+		} {
+			if strings.Contains(text, forbidden) {
+				t.Fatalf("%s still contains runtime-only fragment %q", tc.path, forbidden)
+			}
+		}
+	}
+}
+
 func TestShellScriptsUseLFLineEndings(t *testing.T) {
 	root := repoRootPath()
 	candidates := existingPaths(

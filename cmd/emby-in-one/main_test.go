@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -195,5 +196,30 @@ func TestResetPasswordUsageErrors(t *testing.T) {
 		if err == nil {
 			t.Fatalf("%v: expected a usage failure, got success; output=%s", args, output)
 		}
+	}
+}
+
+func TestHealthcheckExitCode(t *testing.T) {
+	var status atomic.Int32
+	status.Store(http.StatusOK)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/System/Info/Public" {
+			http.NotFound(w, r)
+			return
+		}
+		w.WriteHeader(int(status.Load()))
+	}))
+	url := ts.URL + "/System/Info/Public"
+	var stderr strings.Builder
+	if code := runHealthcheck(url, &stderr); code != 0 {
+		t.Fatalf("healthy server: exit %d, stderr=%s", code, stderr.String())
+	}
+	status.Store(http.StatusServiceUnavailable)
+	if code := runHealthcheck(url, &stderr); code != 1 {
+		t.Fatalf("503 server: exit %d, want 1", code)
+	}
+	ts.Close()
+	if code := runHealthcheck(url, &stderr); code != 1 {
+		t.Fatalf("stopped server: exit %d, want 1", code)
 	}
 }
