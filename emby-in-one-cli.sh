@@ -546,7 +546,7 @@ download_and_install_docker() {
     cp -f "${src_dir}/Dockerfile" "${dockerfile_tpl}"
   else
     cat > "${dockerfile_tpl}" <<'DEOF'
-FROM golang:1.23-bookworm AS builder
+FROM golang:1.26-trixie AS builder
 ARG VERSION=dev
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /src

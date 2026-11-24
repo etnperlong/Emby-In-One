@@ -1,4 +1,4 @@
-FROM golang:1.23-bookworm AS builder
+FROM golang:1.26-trixie AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY go.mod ./
@@ -15,8 +15,13 @@ RUN mkdir -p /out/state/config /out/state/data
 FROM gcr.io/distroless/static-debian13
 ARG VERSION=dev
 ARG REVISION=unknown
-LABEL org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.revision="${REVISION}"
+ARG BUILD_DATE
+LABEL org.opencontainers.image.title="emby-in-one" \
+      org.opencontainers.image.description="Emby aggregation proxy" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.revision="${REVISION}" \
+      org.opencontainers.image.licenses="GPL-3.0"
 WORKDIR /app
 COPY public ./public
 COPY --from=builder /out/emby-in-one ./emby-in-one

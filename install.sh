@@ -186,7 +186,7 @@ copy_item() {
 write_runtime_dockerfile_to() {
   local dest="$1"
   cat > "${dest}" <<'EOF'
-FROM golang:1.23-bookworm AS builder
+FROM golang:1.26-trixie AS builder
 ARG VERSION=dev
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
