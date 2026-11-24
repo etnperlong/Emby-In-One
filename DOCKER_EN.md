@@ -195,7 +195,7 @@ There is no project-specific automatic Compose rollback. Save sanitized failure 
 
 ## 6. Local source builds and the installer
 
-For a local build, the context needs `go.mod`, `cmd/`, `internal/`, `third_party/`, `public/` and Dockerfile. Go/C compilation runs inside the builder, but needs host build resources and access to base images/Debian packages. Prepare config/data as above in a reviewed clean checkout:
+For a local build, the context needs `go.mod`, `go.sum`, `cmd/`, `internal/`, `public/` and Dockerfile. Go compilation (`CGO_ENABLED=0`) runs inside the builder, but needs host build resources and access to base images/Debian packages. Prepare config/data as above in a reviewed clean checkout:
 
 ```bash
 VERSION="local-$(git rev-parse --short=12 HEAD)"

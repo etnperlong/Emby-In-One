@@ -188,14 +188,14 @@ write_runtime_dockerfile_to() {
   cat > "${dest}" <<'EOF'
 FROM golang:1.23-bookworm AS builder
 ARG VERSION=dev
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY go.mod ./
-COPY third_party ./third_party
+COPY go.sum ./
 COPY cmd ./cmd
 COPY internal ./internal
 COPY public ./public
-RUN CGO_ENABLED=1 go build -ldflags="-s -w -X main.Version=${VERSION}" -o /out/emby-in-one ./cmd/emby-in-one
+RUN CGO_ENABLED=0 go build -ldflags="-s -w -X main.Version=${VERSION}" -o /out/emby-in-one ./cmd/emby-in-one
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates tzdata wget && rm -rf /var/lib/apt/lists/*
@@ -243,13 +243,13 @@ EOF
 
 copy_distribution_layout() {
   local base="$1"
-  local required=(cmd internal third_party public go.mod)
+  local required=(cmd internal public go.mod go.sum)
   for item in "${required[@]}"; do
     [[ -e "${base}/${item}" ]] || return 1
   done
 
   info "从 ${base} 复制 Go 独立发行目录文件..."
-  for item in cmd internal third_party public go.mod README.md README_EN.md Update.md emby-in-one-cli.sh .dockerignore LICENSE; do
+  for item in cmd internal public go.mod go.sum README.md README_EN.md Update.md emby-in-one-cli.sh .dockerignore LICENSE; do
     copy_item "${base}/${item}" "${PROJECT_DIR}/"
   done
   # 已有 Dockerfile/docker-compose.yml 不自动覆盖（用户可能改过端口/挂载/构建

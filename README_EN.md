@@ -160,7 +160,7 @@ This route compiles on the local machine. Allow enough build resources and acces
 
 ### Method 4: Run Go Source (For Developers)
 
-Requires Go 1.23+ and a C toolchain for SQLite's CGO support (on Debian/Ubuntu, install the C toolchain with `sudo apt install build-essential`).
+Requires Go 1.23+. SQLite uses a pure Go implementation, so source runs do not need CGO or a native compiler.
 
 ```bash
 mkdir -p config data
@@ -315,7 +315,7 @@ Then visit `https://media.example.com/web` (Web client) and `https://media.examp
 
 **Go Source Build:**
 - Go 1.23+
-- C Toolchain (CGO used for SQLite): Debian/Ubuntu run `apt install build-essential`
+- SQLite uses a pure Go dependency and supports `CGO_ENABLED=0` builds
 
 ---
 
@@ -937,7 +937,6 @@ Emby-In-One/
 ├── assets/                 Shared admin/Web Tailwind CSS build inputs
 ├── tests/                  Frontend behavior tests, browser fixtures and synthetic-test tooling
 ├── tools/                  Dual-cache browser acceptance fixture
-├── third_party/sqlite/     SQLite amalgamation used by the CGO build
 ├── scripts/                Docker deployment, image verification and release-policy helpers
 ├── .github/workflows/      Go/frontend CI, Release and Docker workflows
 ├── docs/                   Theme formats and example packages

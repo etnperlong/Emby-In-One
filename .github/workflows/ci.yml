@@ -23,8 +23,6 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      # The SQLite driver is cgo over a vendored amalgamation, so the package only builds
-      # with a working C toolchain (gcc is preinstalled on the runner).
       - name: Build
         run: nice -n 19 go build ./...
       - name: Vet

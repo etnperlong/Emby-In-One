@@ -36,8 +36,9 @@ test('source installer creates valid fresh templates and preserves customized fi
 info() { :; }
 warn() { :; }
 ${functions}
-mkdir -p fixture/cmd fixture/internal fixture/third_party fixture/public target
+mkdir -p fixture/cmd fixture/internal fixture/public target
 printf 'module example\n' > fixture/go.mod
+: > fixture/go.sum
 PROJECT_DIR="$PWD/target"
 copy_distribution_layout "$PWD/fixture"
 cp target/Dockerfile first.Dockerfile
@@ -51,7 +52,9 @@ copy_distribution_layout "$PWD/fixture"
     const first = fs.readFileSync(path.join(dir, 'first.compose.yml'), 'utf8');
     assert.match(first, /^services:\n  emby-in-one:/);
     assert.match(first, /build:\n      context: \./);
-    assert.match(fs.readFileSync(path.join(dir, 'first.Dockerfile'), 'utf8'), /COPY third_party \.\/third_party/);
+    const dockerfile = fs.readFileSync(path.join(dir, 'first.Dockerfile'), 'utf8');
+    assert.match(dockerfile, /COPY go\.sum \.\//);
+    assert.match(dockerfile, /CGO_ENABLED=0/);
     assert.equal(fs.readFileSync(path.join(dir, 'target/Dockerfile'), 'utf8'), '# operator Dockerfile\n');
     assert.equal(fs.readFileSync(path.join(dir, 'target/docker-compose.yml'), 'utf8'), '# operator compose\n');
     assert.equal(fs.readFileSync(path.join(dir, 'target/docker-compose.yml.release'), 'utf8'), first);

@@ -160,7 +160,7 @@ sudo bash install.sh --mode source
 
 ### 方式四：Go 源码运行（适合开发者）
 
-需要 Go 1.23+ 和 C 编译链，SQLite 使用 CGO（Debian/Ubuntu 可运行 `sudo apt install build-essential` 安装 C 编译链）。
+需要 Go 1.23+。SQLite 使用纯 Go 实现，源码运行不需要 CGO 或原生编译器。
 
 ```bash
 mkdir -p config data
@@ -315,7 +315,7 @@ sudo nginx -t && sudo systemctl reload nginx
 
 **Go 源码编译：**
 - Go 1.23+
-- C 编译链（CGO 用于 SQLite）：Debian/Ubuntu 运行 `apt install build-essential`
+- SQLite 使用纯 Go 依赖，支持 `CGO_ENABLED=0` 构建
 
 ---
 
@@ -937,7 +937,6 @@ Emby-In-One/
 ├── assets/                 管理面板与 Web 共用的 Tailwind CSS 构建输入
 ├── tests/                  前端行为测试、浏览器 fixture 与合成测试工具
 ├── tools/                  双缓存浏览器验收 fixture
-├── third_party/sqlite/     SQLite amalgamation，供 CGO 构建使用
 ├── scripts/                Docker 部署、镜像验证与发布策略辅助工具
 ├── .github/workflows/      Go/前端 CI、Release 与 Docker 工作流
 ├── docs/                   主题格式与主题包示例

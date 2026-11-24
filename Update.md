@@ -1092,10 +1092,10 @@ Admin API 和 Emby 客户端路由采用差异化 CORS 策略。
 
 ### Dockerfile 多阶段构建
 
-Docker 镜像改为两阶段构建，运行时镜像不再包含编译工具链。
+Docker 镜像使用两阶段构建，运行时镜像不包含编译工具链。
 
-- **builder 阶段**：安装 `build-essential`、`python3`、`g++`、`make`，编译 `better-sqlite3` 等原生模块
-- **runtime 阶段**：基于干净的 `node:20-slim`，仅拷贝编译好的 `node_modules` 和源码
+- **builder 阶段**：基于 `golang:1.23-bookworm`，使用 `CGO_ENABLED=0` 编译纯 Go 二进制
+- **runtime 阶段**：基于干净的 `debian:bookworm-slim`，仅拷贝编译好的二进制和 `public/` 静态资源
 - 最终镜像体积显著减小
 
 ---

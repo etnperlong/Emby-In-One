@@ -211,7 +211,7 @@ dc up -d --no-build
 
 ## 6. 本地构建：保留，但不要冒充拉镜像
 
-仓库的 `docker-compose.yml` 是本地构建模板。完整构建上下文需含 `go.mod`、`cmd/`、`internal/`、`third_party/`、`public/` 和 Dockerfile；不要只复制 Go 文件。编译 Go/C 发生在 builder 容器中，宿主不要求装 Go，但需要构建资源和基础镜像、Debian 软件源网络。
+仓库的 `docker-compose.yml` 是本地构建模板。完整构建上下文需含 `go.mod`、`go.sum`、`cmd/`、`internal/`、`public/` 和 Dockerfile；不要只复制 Go 文件。Go 编译（`CGO_ENABLED=0`）发生在 builder 容器中，宿主不要求装 Go，但需要构建资源和基础镜像、Debian 软件源网络。
 
 在已审阅、干净的源码树（发布 tag 或记录下来的提交）中准备 config/data 后：
 

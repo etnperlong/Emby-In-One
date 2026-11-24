@@ -1,6 +1,6 @@
 name: Release
 
-# Uppercase V tags publish six static binaries, panel/scripts and a Docker
+# Uppercase V tags publish four static binaries, panel/scripts and a Docker
 # source archive with checksums. Suffix tags are Pre-releases, never Latest.
 on:
   push:
@@ -44,52 +44,36 @@ jobs:
         shell: bash
     strategy:
       fail-fast: false
+      # Pure Go SQLite (modernc) has no linux/mips or linux/mipsle port.
       matrix:
         include:
           - arch: amd64
-            cc: gcc
-            packages: build-essential
           - arch: arm64
-            cc: aarch64-linux-gnu-gcc
-            packages: gcc-aarch64-linux-gnu libc6-dev-arm64-cross
           - arch: arm
-            cc: arm-linux-gnueabihf-gcc
-            packages: gcc-arm-linux-gnueabihf libc6-dev-armhf-cross
             goarm: '7'
-          - arch: mips
-            cc: mips-linux-gnu-gcc
-            packages: gcc-mips-linux-gnu libc6-dev-mips-cross
-          - arch: mipsle
-            cc: mipsel-linux-gnu-gcc
-            packages: gcc-mipsel-linux-gnu libc6-dev-mipsel-cross
           - arch: riscv64
-            cc: riscv64-linux-gnu-gcc
-            packages: gcc-riscv64-linux-gnu libc6-dev-riscv64-cross
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Install target C toolchain
-        env:
-          CROSS_PACKAGES: ${{ matrix.packages }}
+      - name: Install binary inspection tool
         run: |
           set -euo pipefail
           apt-get update
-          apt-get install -y --no-install-recommends file $CROSS_PACKAGES
+          apt-get install -y --no-install-recommends file
       - name: Build and verify static binary
         env:
           TAG: ${{ github.ref_name }}
           ARCH: ${{ matrix.arch }}
-          CC: ${{ matrix.cc }}
           GOARM: ${{ matrix.goarm }}
         run: |
           set -euo pipefail
           VERSION="v${TAG#V}"
           mkdir -p dist
           binary="dist/Emby-In-One-linux-${ARCH}-${VERSION}"
-          CGO_ENABLED=1 GOOS=linux GOARCH="$ARCH" nice -n 19 \
+          CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" nice -n 19 \
             go build -trimpath -buildvcs=false -tags "netgo osusergo" \
-            -ldflags "-s -w -X main.Version=${VERSION} -extldflags -static" \
+            -ldflags "-s -w -X main.Version=${VERSION}" \
             -o "$binary" ./cmd/emby-in-one
           file "$binary"
           file "$binary" | grep -q 'statically linked'
@@ -122,7 +106,7 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="v${TAG#V}"
-          for arch in amd64 arm64 arm mips mipsle riscv64; do
+          for arch in amd64 arm64 arm riscv64; do
             test -s "dist/Emby-In-One-linux-${arch}-${VERSION}"
           done
           chmod +x "dist/Emby-In-One-linux-amd64-${VERSION}"
@@ -142,11 +126,11 @@ jobs:
           # （go build 的 VCS 戳记就是栽在这个属主差异上，见上一步注释）。
           git config --global --add safe.directory "${GITHUB_WORKSPACE}"
           # emby-in-one-cli.sh 的 Docker 模式在线更新按此清单解包部署
-          # （cmd / internal / third_party / public / go.mod + Dockerfile 等）。
+          # （cmd / internal / public / go.mod / go.sum + Dockerfile 等）。
           # git archive 只含已提交文件，并按 .gitattributes 统一为 LF 行尾。
           git archive --format=tar.gz --prefix="emby-in-one/" \
             -o "dist/Emby-In-One-docker-${VERSION}.tar.gz" HEAD \
-            cmd internal third_party public go.mod \
+            cmd internal public go.mod go.sum \
             Dockerfile .dockerignore docker-compose.yml \
             install.sh eio-docker.sh docker-compose.image.yml DOCKER.md DOCKER_EN.md RELEASING.md \
             emby-in-one-cli.sh \
